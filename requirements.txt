@@ -1,0 +1,7 @@
+langchain
+langchain-huggingface
+langchain-postgres
+sentence-transformers
+psycopg[binary]
+python-dotenv
+torch
