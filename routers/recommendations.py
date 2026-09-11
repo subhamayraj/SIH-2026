@@ -55,7 +55,7 @@ def get_user_recommendations(user_id: int, db: Session = Depends(get_db)):
             )
 
             if existing:
-                match_score = existing.match_score
+                match_score = float(existing.match_score)
                 reasoning = existing.reasoning
             else:
                 match_score = min(100, 70 + int(profile.gap_score * 10))
