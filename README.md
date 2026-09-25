@@ -12,6 +12,7 @@ It connects competency mapping, personalised course recommendations, and AI-assi
 [![Frontend](https://img.shields.io/badge/frontend-Next.js%2014-111827?style=for-the-badge&logo=nextdotjs)](https://nextjs.org/)
 [![Language](https://img.shields.io/badge/language-TypeScript%20%7C%20Python-2563eb?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
 [![AI](https://img.shields.io/badge/AI-Google%20Gemini-f59e0b?style=for-the-badge)](https://ai.google.dev/)
+[![AI tooling](https://img.shields.io/badge/AI%20tooling-LangChain%20%7C%20Hugging%20Face-f97316?style=for-the-badge)](https://www.langchain.com/)
 
 ---
 
@@ -103,7 +104,8 @@ graph TB
 	AUTH[Clerk Authentication]
 	DB[(PostgreSQL + pgvector)]
 	CACHE[(Redis)]
-	AI[Google Gemini]
+	AI[Gemini + LangChain]
+	HF[Hugging Face Models]
 	MEDIA[ImageKit CDN]
 	PY[FastAPI Whisper Service]
 	IGOT[iGOT Mock Adapter]
@@ -113,6 +115,7 @@ graph TB
 	API --> DB
 	API --> CACHE
 	API --> AI
+	AI --> HF
 	API --> MEDIA
 	API --> PY
 	API --> IGOT
@@ -131,6 +134,8 @@ graph TB
 | Vector search | pgvector | Semantic matching between competency profiles and courses |
 | AI | Google Gemini 2.0 Flash | Quiz generation, explanations, and recommendation reasoning |
 | Embeddings | Gemini `text-embedding-004` | Profile and course similarity search |
+| AI orchestration | LangChain.js | Prompt chains, structured outputs, validation, and model routing |
+| Open-source AI | Hugging Face Transformers / Inference API | Optional specialist NLP models and model experimentation |
 | Media | ImageKit | Direct upload, storage, CDN delivery, and video assets |
 | Transcription | Python, FastAPI, faster-whisper | Video/audio transcription microservice |
 | Caching | Redis 7 | Embedding and frequently requested data cache |
