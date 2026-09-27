@@ -1,216 +1,191 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
+from database import db
 from routers.competencies import router as competency_router
 from routers.recommendations import router as recommendations_router
 
-from database import SessionLocal
 
-from models import (
-    User,
-    CompetencyFramework,
-    CompetencyProfile,
-    Course,
-    Recommendation,
-    Enrollment,
-    LearningMaterial,
-    Quiz,
-    QuizAttempt
-)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await db.connect()
+    yield
+    await db.disconnect()
+
 
 app = FastAPI(
     title="KarmaPathAI API",
     description="AI-enabled learning platform for Official Statistical System",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
+
 
 app.include_router(competency_router)
 app.include_router(recommendations_router)
 
 
 @app.get("/")
-def home():
-    return {"message": "KarmaPathAI API is running!"}
+async def home():
+    return {
+        "message": "KarmaPathAI API is running!"
+    }
 
 
 @app.get("/users")
-def get_users():
-    db = SessionLocal()
-    try:
-        users = db.query(User).all()
+async def get_users():
+    users = await db.users.find_many()
 
-        return [
-            {
-                "id": user.id,
-                "name": user.name,
-                "email": user.email,
-                "role": user.role,
-                "department": user.department,
-                "designation": user.designation
-            }
-            for user in users
-        ]
-    finally:
-        db.close()
+    return [
+        {
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "role": user.role,
+            "department": user.department,
+            "designation": user.designation
+        }
+        for user in users
+    ]
 
 
 @app.get("/competencies")
-def get_competencies():
-    db = SessionLocal()
-    try:
-        profiles = db.query(CompetencyProfile).all()
-        result = []
+async def get_competencies():
+    profiles = await db.competency_profiles.find_many(
+        include={
+            "competency_frameworks": True
+        }
+    )
 
-        for profile in profiles:
-            skill = db.query(CompetencyFramework).filter(
-                CompetencyFramework.id == profile.skill_id
-            ).first()
-
-            if skill:
-                result.append({
-                    "skill": skill.skill_name,
-                    "domain": skill.domain,
-                    "current_level": profile.current_level,
-                    "required_level": skill.required_level,
-                    "gap_score": float(profile.gap_score)
-                })
-
-        return result
-    finally:
-        db.close()
+    return [
+        {
+            "skill": profile.competency_frameworks.skill_name,
+            "domain": profile.competency_frameworks.domain,
+            "current_level": profile.current_level,
+            "required_level": profile.competency_frameworks.required_level,
+            "gap_score": float(profile.gap_score or 0)
+        }
+        for profile in profiles
+        if profile.competency_frameworks
+    ]
 
 
 @app.get("/courses")
-def get_courses():
-    db = SessionLocal()
-    try:
-        courses = db.query(Course).all()
+async def get_courses():
+    courses = await db.courses.find_many()
 
-        return [
-            {
-                "id": course.id,
-                "title": course.title,
-                "description": course.description,
-                "provider": course.provider,
-                "duration": course.duration,
-                "domain": course.domain,
-                "difficulty": course.difficulty,
-                "url": course.url
-            }
-            for course in courses
-        ]
-    finally:
-        db.close()
+    return [
+        {
+            "id": course.id,
+            "title": course.title,
+            "description": course.description,
+            "provider": course.provider,
+            "duration": course.duration,
+            "domain": course.domain,
+            "difficulty": course.difficulty,
+            "url": course.url
+        }
+        for course in courses
+    ]
 
 
 @app.get("/recommendations")
-def get_recommendations():
-    db = SessionLocal()
-    try:
-        recommendations = db.query(Recommendation).all()
-        result = []
+async def get_recommendations():
+    recommendations = await db.recommendations.find_many(
+        include={
+            "courses": True
+        }
+    )
 
-        for recommendation in recommendations:
-            course = db.query(Course).filter(
-                Course.id == recommendation.course_id
-            ).first()
-
-            result.append({
-                "id": recommendation.id,
-                "user_id": recommendation.user_id,
-                "course": course.title if course else None,
-                "match_score": float(recommendation.match_score),
-                "status": recommendation.status,
-                "reasoning": recommendation.reasoning
-            })
-
-        return result
-    finally:
-        db.close()
+    return [
+        {
+            "id": recommendation.id,
+            "user_id": recommendation.user_id,
+            "course": (
+                recommendation.courses.title
+                if recommendation.courses
+                else None
+            ),
+            "match_score": float(
+                recommendation.match_score or 0
+            ),
+            "status": recommendation.status,
+            "reasoning": recommendation.reasoning
+        }
+        for recommendation in recommendations
+    ]
 
 
 @app.get("/enrollments")
-def get_enrollments():
-    db = SessionLocal()
-    try:
-        enrollments = db.query(Enrollment).all()
+async def get_enrollments():
+    enrollments = await db.enrollments.find_many(
+        include={
+            "courses": True
+        }
+    )
 
-        return [
-            {
-                "id": enrollment.id,
-                "user_id": enrollment.user_id,
-                "course": (
-                    db.query(Course)
-                    .filter(Course.id == enrollment.course_id)
-                    .first().title
-                    if db.query(Course)
-                    .filter(Course.id == enrollment.course_id)
-                    .first()
-                    else None
-                ),
-                "status": enrollment.status,
-                "progress": float(enrollment.progress_pct)
-            }
-            for enrollment in enrollments
-        ]
-    finally:
-        db.close()
+    return [
+        {
+            "id": enrollment.id,
+            "user_id": enrollment.user_id,
+            "course": (
+                enrollment.courses.title
+                if enrollment.courses
+                else None
+            ),
+            "status": enrollment.status,
+            "progress": float(
+                enrollment.progress_pct or 0
+            )
+        }
+        for enrollment in enrollments
+    ]
 
 
 @app.get("/learning-materials")
-def get_learning_materials():
-    db = SessionLocal()
-    try:
-        materials = db.query(LearningMaterial).all()
+async def get_learning_materials():
+    materials = await db.learning_materials.find_many()
 
-        return [
-            {
-                "id": material.id,
-                "uploaded_by": material.uploaded_by,
-                "filename": material.filename,
-                "content_type": material.content_type,
-                "extracted_text": material.extracted_text
-            }
-            for material in materials
-        ]
-    finally:
-        db.close()
+    return [
+        {
+            "id": material.id,
+            "uploaded_by": material.uploaded_by,
+            "filename": material.filename,
+            "content_type": material.content_type,
+            "extracted_text": material.extracted_text
+        }
+        for material in materials
+    ]
 
 
 @app.get("/quizzes")
-def get_quizzes():
-    db = SessionLocal()
-    try:
-        quizzes = db.query(Quiz).all()
+async def get_quizzes():
+    quizzes = await db.quizzes.find_many()
 
-        return [
-            {
-                "id": quiz.id,
-                "material_id": quiz.material_id,
-                "title": quiz.title,
-                "questions": quiz.questions_json
-            }
-            for quiz in quizzes
-        ]
-    finally:
-        db.close()
+    return [
+        {
+            "id": quiz.id,
+            "material_id": quiz.material_id,
+            "title": quiz.title,
+            "questions": quiz.questions_json
+        }
+        for quiz in quizzes
+    ]
 
 
 @app.get("/quiz-attempts")
-def get_quiz_attempts():
-    db = SessionLocal()
-    try:
-        attempts = db.query(QuizAttempt).all()
+async def get_quiz_attempts():
+    attempts = await db.quiz_attempts.find_many()
 
-        return [
-            {
-                "id": attempt.id,
-                "quiz_id": attempt.quiz_id,
-                "user_id": attempt.user_id,
-                "answers": attempt.answers_json,
-                "score": float(attempt.score),
-                "max_score": float(attempt.max_score)
-            }
-            for attempt in attempts
-        ]
-    finally:
-        db.close()
+    return [
+        {
+            "id": attempt.id,
+            "quiz_id": attempt.quiz_id,
+            "user_id": attempt.user_id,
+            "answers": attempt.answers_json,
+            "score": float(attempt.score or 0),
+            "max_score": float(attempt.max_score or 0)
+        }
+        for attempt in attempts
+    ]

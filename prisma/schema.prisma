@@ -1,0 +1,136 @@
+generator client {
+  provider = "prisma-client-py"
+  enable_experimental_decimal = true
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model alembic_version {
+  version_num String @id(map: "alembic_version_pkc") @db.VarChar(32)
+}
+
+model competency_frameworks {
+  id                  Int                   @id @default(autoincrement())
+  domain              String                @db.VarChar(100)
+  skill_name          String                @db.VarChar(150)
+  description         String?
+  required_level      Int?                  @default(1)
+  competency_profiles competency_profiles[]
+}
+
+model competency_profiles {
+  id                    Int                   @id @default(autoincrement())
+  user_id               Int
+  skill_id              Int
+  current_level         Int?                  @default(0)
+  gap_score             Decimal?              @db.Decimal(5, 2)
+  embedding             String?
+  competency_frameworks competency_frameworks @relation(fields: [skill_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users                 users                 @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, skill_id])
+  @@index([skill_id], map: "ix_competency_profiles_skill_id")
+  @@index([user_id], map: "ix_competency_profiles_user_id")
+}
+
+model courses {
+  id              Int               @id @default(autoincrement())
+  title           String            @db.VarChar(200)
+  description     String?
+  provider        String?           @db.VarChar(150)
+  duration        Int?
+  domain          String?           @db.VarChar(100)
+  difficulty      String?           @db.VarChar(50)
+  url             String?
+  embedding       String?
+  enrollments     enrollments[]
+  recommendations recommendations[]
+}
+
+model enrollments {
+  id           Int       @id @default(autoincrement())
+  user_id      Int
+  course_id    Int
+  status       String?   @default("enrolled") @db.VarChar(30)
+  progress_pct Decimal?  @default(0) @db.Decimal(5, 2)
+  enrolled_at  DateTime? @default(now()) @db.Timestamp(6)
+  completed_at DateTime? @db.Timestamp(6)
+  courses      courses   @relation(fields: [course_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users        users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([course_id], map: "ix_enrollments_course_id")
+  @@index([user_id], map: "ix_enrollments_user_id")
+}
+
+model learning_materials {
+  id             Int       @id @default(autoincrement())
+  uploaded_by    Int
+  filename       String    @db.VarChar(255)
+  content_type   String?   @db.VarChar(100)
+  extracted_text String?
+  created_at     DateTime? @default(now()) @db.Timestamp(6)
+  users          users     @relation(fields: [uploaded_by], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  quizzes        quizzes[]
+  
+  @@index([uploaded_by], map: "ix_learning_materials_uploaded_by")
+}
+
+model quiz_attempts {
+  id           Int       @id @default(autoincrement())
+  quiz_id      Int
+  user_id      Int
+  answers_json Json?
+  score        Decimal?  @db.Decimal(5, 2)
+  max_score    Decimal?  @db.Decimal(5, 2)
+  attempted_at DateTime? @default(now()) @db.Timestamp(6)
+  quizzes      quizzes   @relation(fields: [quiz_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users        users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([quiz_id], map: "ix_quiz_attempts_quiz_id")
+  @@index([user_id], map: "ix_quiz_attempts_user_id")
+}
+
+model quizzes {
+  id                 Int                @id @default(autoincrement())
+  material_id        Int
+  title              String             @db.VarChar(200)
+  questions_json     Json
+  created_at         DateTime?          @default(now()) @db.Timestamp(6)
+  quiz_attempts      quiz_attempts[]
+  learning_materials learning_materials @relation(fields: [material_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([material_id], map: "ix_quizzes_material_id")
+}
+
+model recommendations {
+  id          Int      @id @default(autoincrement())
+  user_id     Int
+  course_id   Int
+  match_score Decimal? @db.Decimal(5, 2)
+  status      String?  @default("recommended") @db.VarChar(30)
+  reasoning   String?
+  courses     courses  @relation(fields: [course_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users       users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([course_id], map: "ix_recommendations_course_id")
+  @@index([user_id], map: "ix_recommendations_user_id")
+}
+
+model users {
+  id                  Int                   @id @default(autoincrement())
+  name                String                @db.VarChar(100)
+  email               String                @unique @db.VarChar(150)
+  role                String?               @default("employee") @db.VarChar(30)
+  department          String?               @db.VarChar(100)
+  designation         String?               @db.VarChar(100)
+  hashed_password     String?
+  created_at          DateTime?             @default(now()) @db.Timestamp(6)
+  competency_profiles competency_profiles[]
+  enrollments         enrollments[]
+  learning_materials  learning_materials[]
+  quiz_attempts       quiz_attempts[]
+  recommendations     recommendations[]
+}
